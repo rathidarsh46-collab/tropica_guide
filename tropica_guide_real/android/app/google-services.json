@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "72105304780",
+    "project_id": "tropica-final",
+    "storage_bucket": "tropica-final.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:72105304780:android:7addecde2fcf4d018c9869",
+        "android_client_info": {
+          "package_name": "com.example.tropica_guide_real"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDab20zheB7bsH7ihC2esEd5JvaYpXiYX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
