@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../models/trip.dart';
-import '../../../utils/date_format.dart';
+import '../../../../models/trip.dart';
+import '../../../../utils/date_format.dart';
 
 class OverviewTab extends StatelessWidget {
   final Trip trip;
