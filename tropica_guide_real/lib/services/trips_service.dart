@@ -7,23 +7,28 @@ import '../models/packing_item.dart';
 import '../models/checklist_item.dart';
 
 class TripsService {
-  final _db = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // Convenience getter for current user id
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
+  // Root trips collection
   CollectionReference<Map<String, dynamic>> get _trips =>
       _db.collection('trips');
 
-  // -------------------------
-  // Trips
-  // -------------------------
+  // ============================================================
+  // TRIPS
+  // ============================================================
 
+  /// NOTE:
+  /// Firestore does NOT support:
+  ///   ownerId == uid OR collaboratorIds contains uid
+  ///
+  /// We intentionally expose two streams and merge in the UI.
   Stream<List<Trip>> streamMyTrips() {
-    // Firestore doesn't support "ownerId == uid OR collaboratorIds contains uid" in one query.
-    // Simple approach: maintain collaboratorIds and do two queries, then merge.
-    // For student projects: easiest is to use two streams and merge in UI.
-    // Here: we provide two streams separately.
-    throw UnimplementedError('Use streamOwnedTrips + streamSharedTrips in UI.');
+    throw UnimplementedError(
+      'Use streamOwnedTrips() and streamSharedTrips() and merge in UI.',
+    );
   }
 
   Stream<List<Trip>> streamOwnedTrips() {
@@ -62,7 +67,7 @@ class TripsService {
       'startDate': Timestamp.fromDate(startDate),
       'endDate': Timestamp.fromDate(endDate),
       'collaboratorEmails': collaboratorEmails,
-      'collaboratorIds': <String>[], // can be populated later
+      'collaboratorIds': <String>[], // populated later
       'isDeleted': false,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
@@ -99,17 +104,20 @@ class TripsService {
   }
 
   Stream<Trip> streamTrip(String tripId) {
-    return _trips.doc(tripId).snapshots().map((doc) => Trip.fromDoc(doc));
+    return _trips.doc(tripId).snapshots().map(Trip.fromDoc);
   }
 
-  // -------------------------
-  // Itinerary activities
-  // -------------------------
+  // ============================================================
+  // ITINERARY ACTIVITIES
+  // ============================================================
 
   CollectionReference<Map<String, dynamic>> _activitiesRef(String tripId) =>
       _trips.doc(tripId).collection('itineraryActivities');
 
-  Stream<List<ActivityItem>> streamActivitiesForDay(String tripId, int dayIndex) {
+  Stream<List<ActivityItem>> streamActivitiesForDay(
+    String tripId,
+    int dayIndex,
+  ) {
     return _activitiesRef(tripId)
         .where('dayIndex', isEqualTo: dayIndex)
         .orderBy('orderIndex')
@@ -127,20 +135,19 @@ class TripsService {
     double? lat,
     double? lon,
   }) async {
-    // Find next orderIndex for the day (simple approach: count existing)
     final existing = await _activitiesRef(tripId)
         .where('dayIndex', isEqualTo: dayIndex)
         .get();
 
-    final nextOrder = existing.docs.length;
-
+    final nextOrderIndex = existing.docs.length;
     final now = DateTime.now();
+
     await _activitiesRef(tripId).add({
       'title': title,
       'note': note,
       'timeOfDay': timeOfDay,
       'dayIndex': dayIndex,
-      'orderIndex': nextOrder,
+      'orderIndex': nextOrderIndex,
       'createdBy': _uid,
       'apiPlaceId': apiPlaceId,
       'lat': lat,
@@ -149,38 +156,45 @@ class TripsService {
       'updatedAt': Timestamp.fromDate(now),
     });
 
-    // Bump trip updatedAt so trips list sorts by recent changes
-    await _trips.doc(tripId).update({'updatedAt': Timestamp.fromDate(now)});
+    await _trips.doc(tripId).update({
+      'updatedAt': Timestamp.fromDate(now),
+    });
   }
 
   Future<void> reorderActivities({
     required String tripId,
     required List<ActivityItem> reordered,
   }) async {
-    // Batch update orderIndex for all affected docs.
     final batch = _db.batch();
     final now = DateTime.now();
 
     for (int i = 0; i < reordered.length; i++) {
-      final docRef = _activitiesRef(tripId).doc(reordered[i].id);
-      batch.update(docRef, {
-        'orderIndex': i,
-        'updatedAt': Timestamp.fromDate(now),
-      });
+      batch.update(
+        _activitiesRef(tripId).doc(reordered[i].id),
+        {
+          'orderIndex': i,
+          'updatedAt': Timestamp.fromDate(now),
+        },
+      );
     }
 
-    batch.update(_trips.doc(tripId), {'updatedAt': Timestamp.fromDate(now)});
+    batch.update(_trips.doc(tripId), {
+      'updatedAt': Timestamp.fromDate(now),
+    });
+
     await batch.commit();
   }
 
   Future<void> deleteActivity(String tripId, String activityId) async {
     await _activitiesRef(tripId).doc(activityId).delete();
-    await _trips.doc(tripId).update({'updatedAt': Timestamp.fromDate(DateTime.now())});
+    await _trips.doc(tripId).update({
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
+    });
   }
 
-  // -------------------------
-  // Packing list (real-time)
-  // -------------------------
+  // ============================================================
+  // PACKING LIST (SECTION 8)
+  // ============================================================
 
   CollectionReference<Map<String, dynamic>> _packingRef(String tripId) =>
       _trips.doc(tripId).collection('packingItems');
@@ -194,6 +208,7 @@ class TripsService {
 
   Future<void> addPackingItem(String tripId, String label) async {
     final now = DateTime.now();
+
     await _packingRef(tripId).add({
       'label': label,
       'isChecked': false,
@@ -201,14 +216,16 @@ class TripsService {
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
     });
-    await _trips.doc(tripId).update({'updatedAt': Timestamp.fromDate(now)});
+
+    await _trips.doc(tripId).update({
+      'updatedAt': Timestamp.fromDate(now),
+    });
   }
 
   Future<void> togglePackingItem(String tripId, PackingItem item) async {
-    final now = DateTime.now();
     await _packingRef(tripId).doc(item.id).update({
       'isChecked': !item.isChecked,
-      'updatedAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }
 
@@ -216,9 +233,9 @@ class TripsService {
     await _packingRef(tripId).doc(itemId).delete();
   }
 
-  // -------------------------
-  // Checklist (real-time)
-  // -------------------------
+  // ============================================================
+  // CHECKLIST (SECTION 9 READY)
+  // ============================================================
 
   CollectionReference<Map<String, dynamic>> _checklistRef(String tripId) =>
       _trips.doc(tripId).collection('checklistItems');
@@ -232,20 +249,26 @@ class TripsService {
 
   Future<void> addChecklistItem(String tripId, String label) async {
     final now = DateTime.now();
+
     await _checklistRef(tripId).add({
       'label': label,
       'isCompleted': false,
       'createdAt': Timestamp.fromDate(now),
       'updatedAt': Timestamp.fromDate(now),
     });
-    await _trips.doc(tripId).update({'updatedAt': Timestamp.fromDate(now)});
+
+    await _trips.doc(tripId).update({
+      'updatedAt': Timestamp.fromDate(now),
+    });
   }
 
-  Future<void> toggleChecklistItem(String tripId, ChecklistItem item) async {
-    final now = DateTime.now();
+  Future<void> toggleChecklistItem(
+    String tripId,
+    ChecklistItem item,
+  ) async {
     await _checklistRef(tripId).doc(item.id).update({
       'isCompleted': !item.isCompleted,
-      'updatedAt': Timestamp.fromDate(now),
+      'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
   }
 
