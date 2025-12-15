@@ -17,144 +17,214 @@ class ItineraryTab extends StatefulWidget {
 class _ItineraryTabState extends State<ItineraryTab> {
   int _selectedDayIndex = 0;
 
-  // Total days in the trip (inclusive)
   int get _totalDays =>
       widget.trip.endDate.difference(widget.trip.startDate).inDays + 1;
 
-  // Simple helper for UI label
   String _dayLabel(int dayIndex) => 'Day ${dayIndex + 1}';
 
   @override
   Widget build(BuildContext context) {
     final tripsService = context.read<TripsService>();
 
-    return Column(
-      children: [
-        // ----------------------------------------------------
-        // Day selector (horizontal chips)
-        // ----------------------------------------------------
-        SizedBox(
-          height: 56,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: _totalDays,
-            itemBuilder: (context, index) {
-              final isSelected = index == _selectedDayIndex;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: ChoiceChip(
-                  label: Text(_dayLabel(index)),
-                  selected: isSelected,
-                  onSelected: (_) {
-                    setState(() {
-                      _selectedDayIndex = index;
-                    });
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-
-        const Divider(height: 1),
-
-        // ----------------------------------------------------
-        // Activities list for selected day (real-time stream)
-        // ----------------------------------------------------
-        Expanded(
-          child: StreamBuilder<List<ActivityItem>>(
-            stream: tripsService.streamActivitiesForDay(
-              widget.trip.id,
-              _selectedDayIndex,
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add activity',
+        child: const Icon(Icons.add),
+        onPressed: () => _showAddActivitySheet(context),
+      ),
+      body: Column(
+        children: [
+          // ---------------- Day selector ----------------
+          SizedBox(
+            height: 56,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _totalDays,
+              itemBuilder: (context, index) {
+                return Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: ChoiceChip(
+                    label: Text(_dayLabel(index)),
+                    selected: index == _selectedDayIndex,
+                    onSelected: (_) {
+                      setState(() {
+                        _selectedDayIndex = index;
+                      });
+                    },
+                  ),
+                );
+              },
             ),
-            builder: (context, snapshot) {
-              // Loading
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-
-              // Error
-              if (snapshot.hasError) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Could not load itinerary.\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
-              final activities = snapshot.data ?? [];
-
-              // Empty state
-              if (activities.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'No activities for ${_dayLabel(_selectedDayIndex)} yet.\n'
-                      'Add activities to build your itinerary.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                );
-              }
-
-              // Reorderable list (drag & drop)
-              return ReorderableListView.builder(
-                itemCount: activities.length,
-                onReorder: (oldIndex, newIndex) {
-                  // ReorderableListView gives a "post-removal" index,
-                  // so adjust when dragging down.
-                  if (newIndex > oldIndex) newIndex -= 1;
-
-                  // Create a new list in the new order
-                  final reordered = List<ActivityItem>.from(activities);
-                  final moved = reordered.removeAt(oldIndex);
-                  reordered.insert(newIndex, moved);
-
-                  // Persist order to Firestore (batch update in TripsService)
-                  tripsService.reorderActivities(
-                    tripId: widget.trip.id,
-                    reordered: reordered,
-                  );
-                },
-                itemBuilder: (context, index) {
-                  final activity = activities[index];
-
-                  return ListTile(
-                    key: ValueKey(activity.id),
-                    leading: const Icon(Icons.drag_handle),
-                    title: Text(activity.title),
-                    subtitle: _subtitleFor(activity),
-                    trailing: IconButton(
-                      tooltip: 'Delete activity',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: () {
-                        tripsService.deleteActivity(
-                          widget.trip.id,
-                          activity.id,
-                        );
-                      },
-                    ),
-                  );
-                },
-              );
-            },
           ),
-        ),
-      ],
+
+          const Divider(height: 1),
+
+          // ---------------- Activities ----------------
+          Expanded(
+            child: StreamBuilder<List<ActivityItem>>(
+              stream: tripsService.streamActivitiesForDay(
+                widget.trip.id,
+                _selectedDayIndex,
+              ),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text('Error loading itinerary: ${snapshot.error}'),
+                  );
+                }
+
+                final activities = snapshot.data ?? [];
+
+                if (activities.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'No activities for ${_dayLabel(_selectedDayIndex)} yet.\n'
+                        'Tap + to add one.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                }
+
+                return ReorderableListView.builder(
+                  itemCount: activities.length,
+                  onReorder: (oldIndex, newIndex) {
+                    if (newIndex > oldIndex) newIndex -= 1;
+
+                    final reordered =
+                        List<ActivityItem>.from(activities);
+                    final moved = reordered.removeAt(oldIndex);
+                    reordered.insert(newIndex, moved);
+
+                    tripsService.reorderActivities(
+                      tripId: widget.trip.id,
+                      reordered: reordered,
+                    );
+                  },
+                  itemBuilder: (context, index) {
+                    final activity = activities[index];
+
+                    return ListTile(
+                      key: ValueKey(activity.id),
+                      leading: const Icon(Icons.drag_handle),
+                      title: Text(activity.title),
+                      subtitle: _subtitleFor(activity),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        onPressed: () {
+                          tripsService.deleteActivity(
+                            widget.trip.id,
+                            activity.id,
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // Build a clean subtitle based on optional fields (time + note)
+  // ---------------- Bottom Sheet ----------------
+
+  void _showAddActivitySheet(BuildContext context) {
+    final titleController = TextEditingController();
+    final timeController = TextEditingController();
+    final noteController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Add Activity (${_dayLabel(_selectedDayIndex)})',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Activity title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: timeController,
+                decoration: const InputDecoration(
+                  labelText: 'Time (optional)',
+                  hintText: 'e.g., 09:30',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: noteController,
+                decoration: const InputDecoration(
+                  labelText: 'Notes (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              ElevatedButton(
+                child: const Text('Add Activity'),
+                onPressed: () async {
+                  final title = titleController.text.trim();
+                  if (title.isEmpty) return;
+
+                  await context.read<TripsService>().addActivity(
+                        tripId: widget.trip.id,
+                        title: title,
+                        dayIndex: _selectedDayIndex,
+                        timeOfDay:
+                            timeController.text.trim().isEmpty
+                                ? null
+                                : timeController.text.trim(),
+                        note: noteController.text.trim().isEmpty
+                            ? null
+                            : noteController.text.trim(),
+                      );
+
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget? _subtitleFor(ActivityItem activity) {
     final parts = <String>[];
 
-    if (activity.timeOfDay != null && activity.timeOfDay!.trim().isNotEmpty) {
+    if (activity.timeOfDay != null &&
+        activity.timeOfDay!.trim().isNotEmpty) {
       parts.add(activity.timeOfDay!.trim());
     }
 
@@ -163,7 +233,6 @@ class _ItineraryTabState extends State<ItineraryTab> {
     }
 
     if (parts.isEmpty) return null;
-
     return Text(parts.join(' • '));
   }
 }
