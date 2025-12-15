@@ -4,8 +4,7 @@ import 'package:provider/provider.dart';
 import 'routes.dart';
 import 'services/auth_service.dart';
 import 'services/trips_service.dart';
-import 'services/places_api_service.dart';
-import 'services/weather_service.dart';
+
 
 class TropicaGuideApp extends StatelessWidget {
   const TropicaGuideApp({super.key});
@@ -17,8 +16,6 @@ class TropicaGuideApp extends StatelessWidget {
       providers: [
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<TripsService>(create: (_) => TripsService()),
-        Provider<PlacesApiService>(create: (_) => PlacesApiService()),
-        Provider<WeatherService>(create: (_) => WeatherService()),
       ],
       child: MaterialApp(
         title: 'TropicaGuide',

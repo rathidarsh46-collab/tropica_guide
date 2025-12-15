@@ -6,7 +6,6 @@ import 'screens/auth/register_screen.dart';
 import 'screens/trips/my_trips_screen.dart';
 import 'screens/trips/trip_form_screen.dart';
 import 'screens/trip_detail/trip_detail_screen.dart';
-import 'screens/activity_search/activity_search_screen.dart';
 
 class Routes {
   static const authGate = '/';
