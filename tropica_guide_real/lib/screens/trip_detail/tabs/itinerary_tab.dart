@@ -138,7 +138,7 @@ class _ItineraryTabState extends State<ItineraryTab> {
     );
   }
 
-  // ================= ADD ACTIVITY ENTRY =================
+  // ================= ADD ACTIVITY OPTIONS =================
 
   void _showAddOptions(BuildContext context) {
     showModalBottomSheet(

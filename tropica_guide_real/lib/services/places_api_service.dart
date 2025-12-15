@@ -4,56 +4,63 @@ import 'package:http/http.dart' as http;
 import '../models/place_result.dart';
 
 class PlacesApiService {
-  // 🔐 Replace with your real key
-  static const String _apiKey = 'YOUR_OPEN_TRIP_MAP_API_KEY';
+  static const _apiKey = 'YOUR_OPENTRIPMAP_API_KEY';
+  static const _host = 'api.opentripmap.com';
 
-  static const String _baseUrl = 'https://api.opentripmap.com/0.1/en/places';
+  /// Hard-coded cities (reliable)
+  static const Map<String, Map<String, double>> _cityCoords = {
+    'madrid': {'lat': 40.4168, 'lon': -3.7038},
+  };
 
-  /// Step 1: Convert city name -> coordinates
-  Future<Map<String, double>> _getCityCoordinates(String city) async {
-    final url = Uri.parse(
-      '$_baseUrl/geoname?name=$city&apikey=$_apiKey',
-    );
+  Future<List<PlaceResult>> searchPlaces({
+  required String city,
+}) async {
+  final key = city
+      .toLowerCase()
+      .replaceAll(',', '')
+      .replaceAll('Spain', '')
+      .trim();
 
-    final response = await http.get(url);
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to geocode city');
-    }
-
-    final data = jsonDecode(response.body);
-    return {
-      'lat': (data['lat'] as num).toDouble(),
-      'lon': (data['lon'] as num).toDouble(),
-    };
+  if (!_cityCoords.containsKey(key)) {
+    return [];
   }
 
-  /// Step 2: Fetch places near that city
-  Future<List<PlaceResult>> searchPlaces({
-    required String city,
-  }) async {
-    final coords = await _getCityCoordinates(city);
 
-    final url = Uri.parse(
-      '$_baseUrl/radius'
-      '?radius=5000'
-      '&lat=${coords['lat']}'
-      '&lon=${coords['lon']}'
-      '&limit=20'
-      '&apikey=$_apiKey',
+    final coords = _cityCoords[key]!;
+
+    final url = Uri.https(
+      _host,
+      '/0.1/en/places/radius',
+      {
+        'radius': '5000',
+        'lat': coords['lat']!.toString(),
+        'lon': coords['lon']!.toString(),
+        'limit': '30',
+        'apikey': _apiKey,
+      },
     );
 
-    final response = await http.get(url);
+    try {
+      final response = await http.get(url);
 
-    if (response.statusCode != 200) {
-      throw Exception('Failed to fetch places');
+      if (response.statusCode != 200) {
+        return [];
+      }
+
+      final List raw = jsonDecode(response.body);
+
+      final results = <PlaceResult>[];
+
+      for (final item in raw) {
+        final place = PlaceResult.tryFromJson(item);
+        if (place != null) {
+          results.add(place);
+        }
+      }
+
+      return results;
+    } catch (_) {
+      return [];
     }
-
-    final List data = jsonDecode(response.body);
-
-    return data
-        .where((item) => item['name'] != null && item['name'] != '')
-        .map((item) => PlaceResult.fromJson(item))
-        .toList();
   }
 }

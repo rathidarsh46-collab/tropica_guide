@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../models/place_result.dart';
-import '../../services/places_api_service.dart';
+import '../../../models/place_result.dart';
+import '../../../services/places_api_service.dart';
 
 class ActivitySearchScreen extends StatefulWidget {
   final String city;
@@ -39,16 +39,21 @@ class _ActivitySearchScreenState extends State<ActivitySearchScreen> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Error loading places.\nTry manual entry instead.',
+                'Error loading activities.\nYou can add one manually instead.',
                 textAlign: TextAlign.center,
               ),
             );
           }
 
-          final places = snapshot.data!;
+          final places = snapshot.data ?? [];
 
           if (places.isEmpty) {
-            return const Center(child: Text('No places found.'));
+            return const Center(
+              child: Text(
+                'No activities found.\nYou can add one manually instead.',
+                textAlign: TextAlign.center,
+              ),
+            );
           }
 
           return ListView.builder(
