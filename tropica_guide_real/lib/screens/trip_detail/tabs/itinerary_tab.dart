@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../../../models/trip.dart';
 import '../../../models/activity_item.dart';
+import '../../../models/place_result.dart';
 import '../../../services/trips_service.dart';
+import '../activity_search/activity_search_screen.dart';
 
 class ItineraryTab extends StatefulWidget {
   final Trip trip;
@@ -30,7 +32,7 @@ class _ItineraryTabState extends State<ItineraryTab> {
       floatingActionButton: FloatingActionButton(
         tooltip: 'Add activity',
         child: const Icon(Icons.add),
-        onPressed: () => _showAddActivitySheet(context),
+        onPressed: () => _showAddOptions(context),
       ),
       body: Column(
         children: [
@@ -136,9 +138,68 @@ class _ItineraryTabState extends State<ItineraryTab> {
     );
   }
 
-  // ---------------- Bottom Sheet ----------------
+  // ================= ADD ACTIVITY ENTRY =================
 
-  void _showAddActivitySheet(BuildContext context) {
+  void _showAddOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.search),
+                title: const Text('Search activities'),
+                subtitle: const Text('Find places using OpenTripMap'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _searchActivities(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Add manually'),
+                subtitle: const Text('Create your own activity'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showManualAddSheet(context);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ================= SEARCH FLOW =================
+
+  Future<void> _searchActivities(BuildContext context) async {
+    final PlaceResult? place = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ActivitySearchScreen(
+          city: widget.trip.destinationCity,
+        ),
+      ),
+    );
+
+    if (place == null) return;
+
+    await context.read<TripsService>().addActivity(
+          tripId: widget.trip.id,
+          title: place.name,
+          dayIndex: _selectedDayIndex,
+          apiPlaceId: place.id,
+          lat: place.lat,
+          lon: place.lon,
+        );
+  }
+
+  // ================= MANUAL FLOW =================
+
+  void _showManualAddSheet(BuildContext context) {
     final titleController = TextEditingController();
     final timeController = TextEditingController();
     final noteController = TextEditingController();
@@ -219,6 +280,8 @@ class _ItineraryTabState extends State<ItineraryTab> {
       },
     );
   }
+
+  // ================= HELPERS =================
 
   Widget? _subtitleFor(ActivityItem activity) {
     final parts = <String>[];
